@@ -21,3 +21,19 @@ app.use(notFound);
 app.use(errorHandler);
 
 module.exports = app;
+
+////API SCHEMA////
+//
+//Dishes routes
+//GET       /dishes
+//POST      /dishes
+//GET       /dishes/:dishId
+//PUT       /dishes/:dishId
+//
+//Orders routes
+//GET       /orders
+//POST      /orders
+//GET       /orders/:orderId
+//PUT       /orders/:orderId
+//DELETE    /orders/:orderId
+////////////////////////////
