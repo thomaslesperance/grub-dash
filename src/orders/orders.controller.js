@@ -2,170 +2,196 @@ const path = require("path");
 const orders = require(path.resolve("src/data/orders-data"));
 const nextId = require("../utils/nextId");
 
-//
-//Middleware
+function bodyHasDeliverProp(req, res, next) {
+  const { data: { deliverTo } = {} } = req.body;
 
-function bodyDataHas(propertyName) {
-  return function (req, res, next) {
-    const { data = {} } = req.body;
-    if (data[propertyName]) {
-      return next();
-    }
-    next({ status: 400, message: `Must include a ${propertyName}` });
-  };
+  if (deliverTo) {
+    res.locals.deliverTo = deliverTo;
+    return next();
+  }
+  next({
+    status: 400,
+    message: `A 'deliverTo' property is required.`,
+  });
 }
 
-function dishesIsArray() {
-  return function (req, res, next) {
-    const { data: { dishes } = {} } = req.body;
-    const isArray = Array.isArray(dishes);
-    if (isArray && isArray.length > 0) {
-      res.locals.dishes = dishes;
-      return next();
-    }
+function bodyHasMobileNumber(req, res, next) {
+  const { data: { mobileNumber } = {} } = req.body;
+  if (mobileNumber) {
+    res.locals.mobileNumber = mobileNumber;
+    return next();
+  }
+  next({
+    status: 400,
+    message: `A 'mobileNumber' property is required.`,
+  });
+}
+
+function bodyHasStatus(req, res, next) {
+  const { data: { status } = {} } = req.body;
+  if (status) {
+    res.locals.status = status;
+    return next();
+  }
+  next({
+    status: 400,
+    message: `A 'status' property is required.`,
+  });
+}
+
+// middleware for checking if the status is in the correct format
+function dataStringIsValid(req, res, next) {
+  const { data: { status } = {} } = req.body;
+  if (
+    status.includes("pending") ||
+    status.includes("preparing") ||
+    status.includes("out-for-delivery") ||
+    status.includes("delivered")
+  ) {
+    res.locals.status = status;
+    return next();
+  }
+  next({
+    status: 400,
+    message: `status property must be valid string: 'pending', 'preparing', 'out-for-delivery', or 'delivered'`,
+  });
+}
+
+// middleware for checking if there is a dish(s) in the order
+function bodyHasDishesProp(req, res, next) {
+  const { data: { dishes } = {} } = req.body;
+  if (dishes) {
+    res.locals.dishes = dishes;
+    return next();
+  }
+  next({
+    status: 400,
+    message: `A 'dishes' property is required.`,
+  });
+}
+
+function dishesArrayIsValid(req, res, next) {
+  const { data: { dishes } = {} } = req.body;
+  if (!Array.isArray(res.locals.dishes) || res.locals.dishes.length == 0) {
     next({
       status: 400,
-      message: "Order must include at least one dish.",
+      message: `invalid dishes property: dishes property must be non-empty array`,
     });
-  };
+  }
+  next();
 }
 
-function quantityIsValidNumber(req, res, next) {
-  const dishes = res.locals.dishes;
+function dishesQuantityIsValid(req, res, next) {
+  const { data: { dishes } = {} } = req.body;
   dishes.forEach((dish) => {
-    if (dish.quantity <= 0 || !Number.isInteger(dish.quantity)) {
+    const quantity = dish.quantity;
+    if (!quantity || quantity <= 0 || typeof quantity !== "number") {
       return next({
         status: 400,
-        message: `Quantity requires a valid number`,
+        message: `dish ${dish.id} must have quantity property, quantity must be an integer, and it must not be equal to or less than 0`,
       });
     }
   });
   next();
 }
 
-function orderExists(req, res, next) {
-  const { orderId } = req.params;
-  const foundOrder = orders.find((order) => order.id === orderId);
-  if (foundOrder) {
-    res.locals.order = foundOrder;
-    next();
-  } else {
-    next({ status: 404, message: `Order does not exist: ${orderId}.` });
-  }
-}
-
-function bodyIdMatchesRouteId(req, res, next) {
+function dataIdMatchesOrderId(req, res, next) {
   const { data: { id } = {} } = req.body;
-  const orderId = res.locals.order.id;
-  if (id) {
-    const matchesRouteId = id === orderId;
-    return matchesRouteId
-      ? next()
-      : next({
-          status: 400,
-          message: `Dish id does not match route id. Dish: ${id}, Route: ${orderId}`,
-        });
-  } else next();
+  const orderId = req.params.orderId;
+  if (id !== undefined && id !== null && id !== "" && id !== orderId) {
+    next({
+      status: 400,
+      message: `id ${id} must match orderId provided in parameters`,
+    });
+  }
+  return next();
 }
 
-function statusPropertyIsNotDelivered(req, res, next) {
-  const { data: { status } = {} } = req.body;
-  const validStatus = ["pending", "preparing", "out-for-delivery"];
-  if (validStatus.includes(status)) {
+function orderExists(req, res, next) {
+  const orderId = req.params.orderId;
+  const matchingOrder = orders.find((order) => order.id === orderId);
+  if (matchingOrder) {
+    res.locals.order = matchingOrder;
     return next();
   }
   next({
-    status: 400,
-    message: `Value of the 'status' property must be one of ${validStatus}. Received: ${status}`,
+    status: 404,
+    message: `Order id not found: ${req.params.orderId}`,
   });
 }
 
-function statusPropertyIsNotPending(req, res, next) {
-  const { data: { status } = {} } = req.body;
-  const validStatus = ["preparing", "out-for-delivery", "delivered"];
-  if (validStatus.includes(status)) {
-    return next();
-  }
-  next({
-    status: 400,
-    message: `Value of the 'status' property must be one of ${validStatus}. Received: ${status}`,
-  });
+// handler for listing the all of the orders
+function list(req, res) {
+  res.json({ data: orders });
 }
 
-//
-//Route handlers
+// handler for updating an order
+function update(req, res) {
+  const orderId = req.params.orderId;
+  const matchingOrder = orders.find((order) => order.id === orderId);
+  const { data: { deliverTo, mobileNumber, status, dishes } = {} } = req.body;
+  matchingOrder.deliverTo = deliverTo;
+  matchingOrder.mobileNumber = mobileNumber;
+  matchingOrder.status = status;
+  matchingOrder.dishes = dishes;
+  res.json({ data: matchingOrder });
+}
+
+function read(req, res) {
+  const orderId = req.params.orderId;
+  const matchingOrder = orders.find((order) => order.id === orderId);
+  res.json({ data: matchingOrder });
+}
 
 function create(req, res) {
-  const { data: { deliverTo, mobileNumber, status } = {} } = req.body;
-  const dishes = res.locals.dishes;
-  const newOrderId = nextId();
+  const { data: { deliverTo, mobileNumber, dishes } = {} } = req.body;
   const newOrder = {
-    id: newOrderId,
+    id: nextId(),
     deliverTo,
     mobileNumber,
-    status,
+    status: "out-for-delivery",
     dishes,
   };
   orders.push(newOrder);
   res.status(201).json({ data: newOrder });
 }
 
-function read(req, res) {
-  res.json({ data: res.locals.order });
+function destroy(req, res, next) {
+  const { orderId } = req.params;
+  const matchingOrder = orders.find((order) => order.id === orderId);
+  if (matchingOrder.status === "pending") {
+    const index = orders.findIndex((order) => order.id === Number(orderId));
+    orders.splice(index, 1);
+    res.sendStatus(204);
+  }
+  return next({
+    status: 400,
+    message: `order cannot be deleted unless order status = 'pending'`,
+  });
 }
-
-function update(req, res) {
-  const { data: { deliverTo, mobileNumber, status } = {} } = req.body;
-  const dishes = res.locals.dishes;
-  const id = res.locals.order.id;
-  const index = orders.findIndex((order) => order.id === id);
-  const updatedOrder = {
-    id: id,
-    deliverTo,
-    mobileNumber,
-    status,
-    dishes: dishes,
-  };
-  orders.splice(index, 1, updatedOrder);
-  res.json({ data: updatedOrder });
-}
-
-function destroy(req, res) {
-  const id = res.locals.order.id;
-  const index = orders.findIndex((order) => order.id === id);
-  orders.splice(index, 1);
-  res.sendStatus(204);
-}
-
-function list(req, res) {
-  res.json({ data: orders });
-}
-
-//
-//Exports
 
 module.exports = {
+  list,
+  read: [orderExists, read],
   create: [
-    bodyDataHas("deliverTo"),
-    bodyDataHas("mobileNumber"),
-    bodyDataHas("dishes"),
-    dishesIsArray,
-    quantityIsValidNumber,
+    bodyHasDeliverProp,
+    bodyHasMobileNumber,
+    bodyHasDishesProp,
+    dishesArrayIsValid,
+    dishesQuantityIsValid,
     create,
   ],
-  read: [orderExists, read],
   update: [
     orderExists,
-    bodyIdMatchesRouteId,
-    bodyDataHas("deliverTo"),
-    bodyDataHas("mobileNumber"),
-    bodyDataHas("dishes"),
-    bodyDataHas("status"),
-    dishesIsArray,
-    quantityIsValidNumber,
-    statusPropertyIsNotDelivered,
+    dataIdMatchesOrderId,
+    bodyHasDeliverProp,
+    bodyHasMobileNumber,
+    bodyHasDishesProp,
+    bodyHasStatus,
+    dataStringIsValid,
+    dishesArrayIsValid,
+    dishesQuantityIsValid,
     update,
   ],
-  delete: [orderExists, statusPropertyIsNotPending, destroy],
-  list,
+  delete: [orderExists, destroy],
 };
