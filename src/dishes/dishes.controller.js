@@ -2,7 +2,6 @@ const path = require("path");
 const dishes = require(path.resolve("src/data/dishes-data"));
 const nextId = require("../utils/nextId");
 
-//
 //Middleware
 
 function bodyDataHas(propertyName) {
@@ -114,5 +113,5 @@ module.exports = {
     priceIsValidNumber,
     update,
   ],
-  list: [list],
+  list,
 };
