@@ -18,25 +18,41 @@ Here is an image of what a frontend to the application might look like:
 The application currently provides the following CRUDL features for the corresponding paths/HTTP method pairs:
 
 ////////////////////////////
+
 //Dishes routes
+
 //GET       /dishes            Provides list of existing dishes
+
 //POST      /dishes            Creates a dish
+
 //GET       /dishes/:dishId    Provides a single dish by dishId
+
 //PUT       /dishes/:dishId    Updates a dish as determined by dishId
+
 //
+
+
 //Orders routes
+
 //GET       /orders            Provides a list of existing orders
+
 //POST      /orders            Creates an order
+
 //GET       /orders/:orderId   Provides a single order by orderId
+
 //PUT       /orders/:orderId   Updates a single order as determined by orderId
+
 //DELETE    /orders/:orderId   Deletes a signle order as determined by orderId
+
 /////////////////////////////
+
 
 All data is loaded from the two data.js files and modified in memory only.
 
 ## Tools and Technology
 
 --  JavaScript
+
 --  Express
 
 ## Conclusion
