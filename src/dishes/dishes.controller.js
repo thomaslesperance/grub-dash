@@ -19,7 +19,7 @@ function priceIsValidNumber(req, res, next) {
   if (price <= 0 || !Number.isInteger(price)) {
     return next({
       status: 400,
-      message: "Price must be a number greater than 0.",
+      message: `price`,
     });
   }
   next();
